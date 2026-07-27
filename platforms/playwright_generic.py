@@ -35,8 +35,26 @@ MAX_TITLE_LEN = 200
 
 # Cap concurrent Chromium instances so we don't OOM the host. Created lazily
 # on first use so we bind to the running event loop, not module-import time.
+# On small containers (e.g. Render free 512 MB) keep this low.
 _BROWSER_SEMAPHORE: asyncio.Semaphore | None = None
-MAX_CONCURRENT_BROWSERS = 3
+MAX_CONCURRENT_BROWSERS = 2
+
+# Chromium flags required to run reliably inside a low-memory Linux container:
+# --no-sandbox            : no user namespaces available in most PaaS sandboxes
+# --disable-dev-shm-usage : container /dev/shm is tiny; write shared memory to /tmp
+# --disable-gpu / --single-process style flags trim peak RSS.
+_CHROMIUM_ARGS = [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--no-zygote",
+]
+
+# Resource types we don't need for link extraction — blocking them cuts memory
+# and network dramatically (Green Software: minimize payload + compute).
+_BLOCKED_RESOURCE_TYPES = {"image", "media", "font", "stylesheet"}
 
 
 def _get_semaphore() -> asyncio.Semaphore:
@@ -61,7 +79,7 @@ class PlaywrightAdapter(PlatformAdapter):
     async def _fetch_with_browser(self, async_playwright) -> list[JobPosting]:
         try:
             async with async_playwright() as pw:
-                browser = await pw.chromium.launch(headless=True)
+                browser = await pw.chromium.launch(headless=True, args=_CHROMIUM_ARGS)
                 try:
                     context = await browser.new_context(
                         user_agent=(
@@ -71,6 +89,14 @@ class PlaywrightAdapter(PlatformAdapter):
                         ),
                         locale="en-US",
                     )
+                    # Block heavy resources we never parse — big memory/bandwidth win.
+                    async def _block(route):
+                        if route.request.resource_type in _BLOCKED_RESOURCE_TYPES:
+                            await route.abort()
+                        else:
+                            await route.continue_()
+
+                    await context.route("**/*", _block)
                     page = await context.new_page()
                     await page.goto(self.public_url, wait_until="domcontentloaded", timeout=45_000)
                     # Give SPAs a moment to render their job list.

@@ -16,7 +16,7 @@ import json
 import re
 
 from .base import JobPosting, PlatformAdapter, PlatformError
-from .playwright_generic import _get_semaphore  # reuse Chromium concurrency cap
+from .playwright_generic import _CHROMIUM_ARGS, _get_semaphore  # reuse Chromium config
 
 CAREERS_URL = "https://www.revolut.com/careers/"
 POSITION_URL_TEMPLATE = "https://www.revolut.com/careers/position/{slug}-{id}/"
@@ -70,7 +70,7 @@ class RevolutAdapter(PlatformAdapter):
     async def _fetch_html(self, async_playwright) -> str:
         try:
             async with async_playwright() as pw:
-                browser = await pw.chromium.launch(headless=True)
+                browser = await pw.chromium.launch(headless=True, args=_CHROMIUM_ARGS)
                 try:
                     context = await browser.new_context(
                         user_agent=(
