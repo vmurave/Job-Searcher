@@ -1,0 +1,22 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: push this repo to GitHub, then in Render click
+# "New +" -> "Blueprint" and select the repo. Render reads this file.
+services:
+  - type: web
+    name: leadership-jobs-digest
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter # 'starter' has a persistent disk; 'free' does NOT persist data
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # Store the SQLite file on the mounted disk so data survives restarts.
+      - key: DATABASE_URL
+        value: sqlite:////data/jobs.db
+      # Run the daily scheduler in the app's local time (adjust as needed).
+      - key: TZ
+        value: UTC
+    disk:
+      name: jobs-data
+      mountPath: /data
+      sizeGB: 1

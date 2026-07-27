@@ -1,0 +1,15 @@
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.db
+jobs.db
+.git/
+.gitignore
+.env
+.env.*
+.vscode/
+README.md
+run.bat
+setup.bat
