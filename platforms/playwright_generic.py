@@ -13,6 +13,7 @@ matcher uniformly across all adapters.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from urllib.parse import urljoin, urlparse
 
@@ -37,7 +38,12 @@ MAX_TITLE_LEN = 200
 # on first use so we bind to the running event loop, not module-import time.
 # On small containers (e.g. Render free 512 MB) keep this low.
 _BROWSER_SEMAPHORE: asyncio.Semaphore | None = None
-MAX_CONCURRENT_BROWSERS = 2
+# Configurable via env so the same image runs on a tiny 512 MB PaaS box
+# (MAX_CONCURRENT_BROWSERS=1) or a roomy VM with lots of RAM (e.g. 4).
+try:
+    MAX_CONCURRENT_BROWSERS = max(1, int(os.environ.get("MAX_CONCURRENT_BROWSERS", "4")))
+except ValueError:
+    MAX_CONCURRENT_BROWSERS = 4
 
 # Chromium flags required to run reliably inside a low-memory Linux container:
 # --no-sandbox            : no user namespaces available in most PaaS sandboxes

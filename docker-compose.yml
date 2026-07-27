@@ -1,0 +1,28 @@
+# Leadership Jobs Digest — VM deployment (e.g. Oracle Cloud Always Free ARM VM).
+# Runs the full scraper (all 25 sources incl. 19 headless-Chromium ones) with a
+# persistent SQLite volume and automatic restart.
+#
+#   docker compose up -d --build      # start (build image first time)
+#   docker compose logs -f            # follow logs
+#   docker compose down               # stop
+services:
+  app:
+    build: .
+    image: leadership-jobs-digest
+    restart: unless-stopped
+    ports:
+      - "80:8000"                     # public HTTP -> app
+    environment:
+      PORT: "8000"
+      TZ: "UTC"                        # daily 09:00 scrape uses this timezone
+      # Persist the SQLite DB on the mounted volume so it survives restarts.
+      DATABASE_URL: "sqlite:////data/jobs.db"
+      # Roomy VM: run several browsers at once. Lower this if the VM is small.
+      MAX_CONCURRENT_BROWSERS: "4"
+    volumes:
+      - jobs-data:/data
+    # Chromium needs a larger shared-memory segment than Docker's 64 MB default.
+    shm_size: "1gb"
+
+volumes:
+  jobs-data:
