@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import datetime as _dt
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -35,6 +36,11 @@ log = logging.getLogger("app")
 templates = Jinja2Templates(directory="templates")
 scheduler = AsyncIOScheduler()
 
+# When the scrape is driven externally (e.g. Cloud Scheduler -> Cloud Run Job),
+# set RUN_SCHEDULER=0 so the web service doesn't also run the in-process
+# scheduler or the heavy startup scrape. Defaults on for local / single-VM use.
+RUN_SCHEDULER = os.environ.get("RUN_SCHEDULER", "1").lower() not in ("0", "false", "no")
+
 
 async def scheduled_job() -> None:
     log.info("Starting scheduled scrape (09:00 daily)")
@@ -47,6 +53,10 @@ async def scheduled_job() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    if not RUN_SCHEDULER:
+        log.info("RUN_SCHEDULER disabled; web service will not scrape (external scheduler expected)")
+        yield
+        return
     scheduler.add_job(
         scheduled_job,
         CronTrigger(hour=9, minute=0),
